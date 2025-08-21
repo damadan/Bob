@@ -9,9 +9,10 @@ from app.schemas.bom import (
     ParseDrawingRequest,
     ParseDrawingResponse,
     ExtractBOMRequest,
-    PriceBOMRequest,
     SuggestSubsRequest,
 )
+from app.schemas.bom import PriceBOMRequest
+from app.services.pricing import price_bom as price_bom_service
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
@@ -85,14 +86,9 @@ def extract_bom(body: ExtractBOMRequest):
     raise HTTPException(status_code=501, detail="Not implemented in step 0")
 
 
-@router.post(
-    "/price_bom",
-    response_model=PricedBOM,
-    responses={501: {"model": Error}},
-    summary="Apply regional pricebook to BOM",
-)
+@router.post("/price_bom", response_model=PricedBOM, summary="Apply regional pricebook to BOM")
 def price_bom(body: PriceBOMRequest):
-    raise HTTPException(status_code=501, detail="Not implemented in step 0")
+    return price_bom_service(body.bom, body.region, body.date)
 
 
 @router.post(
