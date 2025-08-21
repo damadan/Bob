@@ -6,9 +6,9 @@
 
 - `GET /health` — проверка состояния сервиса.
 - `POST /mcp/material/parse_drawing` — конвертация PDF или IFC в список позиций.
-- `POST /mcp/material/extract_bom` — формирование нормализованной спецификации (заглушка).
-- `POST /mcp/material/price_bom` — оценка стоимости спецификации (заглушка).
-- `POST /mcp/material/suggest_substitutions` — подбор альтернатив (заглушка).
+- `POST /mcp/material/extract_bom` — формирование нормализованной спецификации: объединение таблиц, распознавание заголовков, нормализация единиц и агрегация позиций.
+- `POST /mcp/material/price_bom` — оценка стоимости спецификации по региональному прайс‑листу.
+- `POST /mcp/material/suggest_substitutions` — подбор альтернативных материалов.
 
 ## URI ресурсов
 
