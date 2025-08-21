@@ -16,7 +16,7 @@ Steps:
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 try:  # pragma: no cover - optional import for integration
     from app.schemas.bom import BOMItem  # type: ignore
@@ -38,21 +38,12 @@ class RawSpec(BaseModel):
 
 router = APIRouter()
 
-# Mapping of common header names to canonical keys
-_HEADER_ALIASES: Dict[str, str] = {
-    "наименование": "name",
-    "название": "name",
-    "наим": "name",
-    "ед": "unit",
-    "ед. изм": "unit",
-    "ед изм": "unit",
-    "unit": "unit",
-    "кол": "quantity",
-    "количество": "quantity",
-    "кол-во": "quantity",
-    "qty": "quantity",
-    "объем": "quantity",
-    "объём": "quantity",
+# Fuzzy header mapping lists
+_HEADERS_MAP: Dict[str, List[str]] = {
+    "name": ["наименование", "материал", "item"],
+    "quantity": ["кол-во", "количество", "qty"],
+    "unit": ["ед.", "единица", "unit"],
+    "code": ["код", "артикул", "id"],
 }
 
 # Unit normalization map
@@ -60,35 +51,43 @@ _UNIT_MAP = {"м2": "sqm", "м3": "m3", "шт": "pcs"}
 
 
 def _map_headers(headers: List[str]) -> Dict[str, int]:
-    """Return mapping of canonical field -> column index."""
+    """Return mapping of canonical field -> column index using fuzzy match."""
     mapping: Dict[str, int] = {}
-    for idx, h in enumerate(headers):
-        key = _HEADER_ALIASES.get(h.strip().lower())
-        if key and key not in mapping:
-            mapping[key] = idx
+    for idx, header in enumerate(headers):
+        h = header.strip().lower()
+        for canon, variants in _HEADERS_MAP.items():
+            if canon in mapping:
+                continue
+            for variant in variants:
+                if variant in h:
+                    mapping[canon] = idx
+                    break
     return mapping
 
 
-def _parse_quantity(val) -> float | None:
+def _parse_quantity(val) -> float:
+    """Parse quantity into float, returning 0.0 on failure."""
     try:
         if isinstance(val, (int, float)):
             return float(val)
         s = str(val).strip().replace(" ", "").replace(",", ".")
         return float(s)
     except Exception:  # pragma: no cover - invalid values
-        return None
+        return 0.0
 
 
 @router.post("/mcp/material/extract_bom", response_model=List[BOMItem])
 def extract_bom(spec: RawSpec) -> List[BOMItem]:
     """Build a normalized BOM list from raw tables."""
-    aggregated: Dict[Tuple[str, str], float] = {}
+
+    aggregated: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
     for table in spec.tables or []:
         hmap = _map_headers(table.headers or [])
         idx_name = hmap.get("name")
         idx_unit = hmap.get("unit")
         idx_qty = hmap.get("quantity")
+        idx_code = hmap.get("code")
 
         for row in table.rows or []:
             name = (
@@ -106,15 +105,35 @@ def extract_bom(spec: RawSpec) -> List[BOMItem]:
             )
             unit = _UNIT_MAP.get(unit, unit)
 
-            qty_val = (
-                row[idx_qty] if idx_qty is not None and idx_qty < len(row) else None
-            )
+            qty_val = row[idx_qty] if idx_qty is not None and idx_qty < len(row) else None
             qty = _parse_quantity(qty_val)
-            if qty is None:
-                continue
+
+            code = (
+                str(row[idx_code]).strip()
+                if idx_code is not None and idx_code < len(row)
+                else None
+            )
+
+            item = {
+                "name": name,
+                "unit": unit,
+                "quantity": qty,
+                "code": code,
+                "category": None,
+            }
 
             key = (name.lower(), unit)
-            aggregated[key] = aggregated.get(key, 0.0) + qty
+            if key in aggregated:
+                aggregated[key]["quantity"] += qty
+            else:
+                aggregated[key] = item
 
-    items = [BOMItem(name=k[0], unit=k[1], qty=v) for k, v in aggregated.items()]
-    return items
+    return [
+        BOMItem(
+            code=v.get("code"),
+            name=v["name"],
+            unit=v["unit"],
+            qty=v["quantity"],
+        )
+        for v in aggregated.values()
+    ]
