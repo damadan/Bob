@@ -63,3 +63,20 @@ def suggest_substitutions(body: SuggestSubsRequest):
     raise HTTPException(status_code=501, detail="Not implemented in step 0")
 
 app.include_router(router)
+
+from fastapi import Response
+from app.core.resource_uri import ResourceUriResolver
+
+resolver_dbg = ResourceUriResolver()
+
+
+@app.get("/resources/pricebook/{region}", tags=["debug"])
+def dbg_pricebook(region: str):
+    p = resolver_dbg.resolve(f"resource://pricebook/{region}")
+    return Response(p.read_text(encoding="utf-8"), media_type="application/x-ndjson")
+
+
+@app.get("/resources/catalog/materials", tags=["debug"])
+def dbg_catalog():
+    p = resolver_dbg.resolve("resource://catalog/materials")
+    return Response(p.read_text(encoding="utf-8"), media_type="application/x-ndjson")
