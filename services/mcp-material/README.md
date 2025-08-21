@@ -45,3 +45,19 @@ docker compose up --build
 ```bash
 pytest -q
 ```
+
+## Step 3: Pricing
+Endpoints:
+- POST /mcp/material/price_bom
+- POST /mcp/material/suggest_substitutions
+
+Run:
+pip install -r requirements-core.txt
+pytest -q
+uvicorn app.main:app --host 0.0.0.0 --port 8080
+
+Example:
+curl -s http://localhost:8080/mcp/material/price_bom -X POST -H "Content-Type: application/json" -d '{
+  "bom":{"items":[{"name":"\u0411\u0435\u0442\u043e\u043d C25/30","unit":"m3","qty":12.5,"code":"MAT-001"}]},
+  "region":"EU-Central"
+}'
