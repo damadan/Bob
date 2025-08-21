@@ -18,7 +18,12 @@ def _plumber_tables(pdf_path: Path) -> List[Dict[str, Any]]:
     with pdfplumber.open(pdf_path) as pdf:
         for pi, page in enumerate(pdf.pages):
             try:
-                tables = page.extract_tables()
+                tables = page.extract_tables(
+                    {
+                        "vertical_strategy": "text",
+                        "horizontal_strategy": "text",
+                    }
+                )
             except Exception:
                 tables = []
             for ti, t in enumerate(tables or []):
