@@ -12,6 +12,7 @@ from app.schemas.bom import (
     PriceBOMRequest,
     SuggestSubsRequest,
 )
+from app.services.substitutions import suggest_substitutions as subs_service
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
@@ -97,11 +98,12 @@ def price_bom(body: PriceBOMRequest):
 
 @router.post(
     "/suggest_substitutions",
-    responses={501: {"model": Error}},
     summary="Suggest alternates for gaps with constraints",
 )
 def suggest_substitutions(body: SuggestSubsRequest):
-    raise HTTPException(status_code=501, detail="Not implemented in step 0")
+    region = "EU-Central"  # for MVP we can infer from context later; or pass explicitly in constraints
+    payload = body.model_dump()
+    return subs_service(payload, region=region)
 
 
 app.include_router(router)
