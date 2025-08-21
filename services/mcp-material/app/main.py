@@ -11,10 +11,18 @@ from app.schemas.bom import (
     ExtractBOMRequest,
     PriceBOMRequest,
     SuggestSubsRequest,
+    ExportExcelRequest,
+    ExportJsonRequest,
+    ReportPdfRequest,
 )
 from app.services.pricing import price_bom as price_bom_service
 from app.services.substitutions import (
     suggest_substitutions as subs_service,
+)
+from app.services.export import (
+    export_excel as export_excel_service,
+    export_json as export_json_service,
+    report_pdf as report_pdf_service,
 )
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
@@ -102,6 +110,39 @@ def suggest_substitutions(body: SuggestSubsRequest):
     region = "EU-Central"  # for MVP we can infer from context later; or pass explicitly in constraints
     payload = body.model_dump()
     return subs_service(payload, region=region)
+
+
+@router.post("/export/excel")
+def export_excel(body: ExportExcelRequest):
+    content = export_excel_service(body.priced_bom)
+    filename = body.filename or "priced_bom.xlsx"
+    return Response(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/export/json")
+def export_json(body: ExportJsonRequest):
+    content = export_json_service(body.priced_bom)
+    filename = body.filename or "priced_bom.json"
+    return Response(
+        content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/report/pdf")
+def report_pdf(body: ReportPdfRequest):
+    content = report_pdf_service(body.priced_bom, title=body.title or "Сметный отчёт")
+    filename = body.filename or "priced_bom.pdf"
+    return Response(
+        content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 app.include_router(router)
