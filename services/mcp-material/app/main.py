@@ -9,9 +9,9 @@ from app.schemas.bom import (
     ParseDrawingRequest,
     ParseDrawingResponse,
     ExtractBOMRequest,
+    PriceBOMRequest,
     SuggestSubsRequest,
 )
-from app.schemas.bom import PriceBOMRequest
 from app.services.pricing import price_bom as price_bom_service
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
