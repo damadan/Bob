@@ -1,8 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any, List
-from app.schemas.bom import BOM, PricedBOM, Gap
+from app.schemas.bom import BOM, PricedBOM
 from app.services.pricebook import Pricebook
-from loguru import logger
 
 def suggest_substitutions(payload: Dict[str, Any], region: str) -> Dict[str, Any]:
     """
