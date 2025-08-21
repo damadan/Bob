@@ -62,3 +62,19 @@ class SuggestSubsRequest(BaseModel):
     bom: Optional[BOM] = None
     priced_bom: Optional[PricedBOM] = None
     constraints: Optional[Dict[str, Any]] = None
+
+class ExportExcelRequest(BaseModel):
+    project_id: str
+    priced_bom: PricedBOM
+    filename: str | None = None  # default: priced_bom.xlsx
+
+class ExportJsonRequest(BaseModel):
+    project_id: str
+    priced_bom: PricedBOM
+    filename: str | None = None  # default: priced_bom.json
+
+class ReportPdfRequest(BaseModel):
+    project_id: str
+    priced_bom: PricedBOM
+    title: str | None = "Сметный отчёт"
+    filename: str | None = None  # default: priced_bom.pdf
