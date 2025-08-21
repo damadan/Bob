@@ -13,6 +13,9 @@ from app.schemas.bom import (
 )
 from app.schemas.bom import PriceBOMRequest
 from app.services.pricing import price_bom as price_bom_service
+from app.services.substitutions import (
+    suggest_substitutions as suggest_substitutions_service,
+)
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
@@ -93,11 +96,13 @@ def price_bom(body: PriceBOMRequest):
 
 @router.post(
     "/suggest_substitutions",
-    responses={501: {"model": Error}},
     summary="Suggest alternates for gaps with constraints",
 )
 def suggest_substitutions(body: SuggestSubsRequest):
-    raise HTTPException(status_code=501, detail="Not implemented in step 0")
+    candidates = suggest_substitutions_service(
+        region="EU-Central", constraints=body.constraints
+    )
+    return {"candidates": candidates}
 
 
 app.include_router(router)
