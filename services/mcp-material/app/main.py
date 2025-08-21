@@ -1,15 +1,20 @@
 from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
 from app.schemas.common import Health, Error
 from app.schemas.bom import (
     BOM,
     PricedBOM,
     ParseDrawingRequest,
+    ParseDrawingResponse,
     ExtractBOMRequest,
     PriceBOMRequest,
     SuggestSubsRequest,
 )
+from app.core.resource_uri import ResourceUriResolver
+from app.parsers.pdf_parser import parse_pdf_to_specs
+from app.parsers.ifc_parser import parse_ifc_to_specs
 from app.core.logging import setup_logging
 
 logger = setup_logging()
@@ -46,9 +51,20 @@ def health():
 
 router = APIRouter(prefix="/mcp/material", tags=["mcp"])
 
-@router.post("/parse_drawing", responses={501: {"model": Error}}, summary="Parse PDF/DWG/IFC into raw specs")
+resolver = ResourceUriResolver()
+
+@router.post("/parse_drawing", response_model=ParseDrawingResponse, summary="Parse PDF/DWG/IFC into raw specs")
 def parse_drawing(body: ParseDrawingRequest):
-    raise HTTPException(status_code=501, detail="Not implemented in step 0")
+    path: Path = resolver.resolve(body.file_uri)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return parse_pdf_to_specs(path)
+    if suffix == ".ifc":
+        return parse_ifc_to_specs(path)
+    # DWG (not implemented yet)
+    raise HTTPException(status_code=415, detail=f"Unsupported file type: {suffix}")
 
 @router.post("/extract_bom", response_model=BOM, responses={501: {"model": Error}}, summary="Build normalized BOM from specs/scope")
 def extract_bom(body: ExtractBOMRequest):
