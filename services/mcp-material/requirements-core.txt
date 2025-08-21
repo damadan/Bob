@@ -1,1 +1,8 @@
 # Core dependencies
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+orjson>=3.9
+loguru>=0.7
+python-multipart>=0.0.9
