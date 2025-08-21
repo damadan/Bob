@@ -1,0 +1,2 @@
+{"code":"MAT-001","canonical_name":"Бетон C25/30","class":"concrete","props":{"strength":"C25/30","density":2400},"synonyms":["бетон м300","concrete c25/30"]}
+{"code":"MAT-002","canonical_name":"Кирпич М150","class":"brick","props":{"grade":"M150"},"synonyms":["brick m150","кирпич рядовой"]}
