@@ -1,6 +1,23 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Literal
 
+
+class RawSpec(BaseModel):
+    row_index: int
+    name: str
+    unit: Optional[str] = None
+    qty: Optional[float] = None
+    mark: Optional[str] = None
+    source_table: Optional[str] = None
+    extras: Optional[Dict[str, Any]] = None
+
+
+class ParseDrawingResponse(BaseModel):
+    specs: List[RawSpec]
+    tables: List[Dict[str, Any]]
+    notes: List[str] = Field(default_factory=list)
+
+
 class BOMItem(BaseModel):
     code: Optional[str] = None
     name: str
