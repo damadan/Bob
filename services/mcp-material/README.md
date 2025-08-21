@@ -61,3 +61,23 @@ curl -s http://localhost:8080/mcp/material/price_bom -X POST -H "Content-Type: a
   "bom":{"items":[{"name":"\u0411\u0435\u0442\u043e\u043d C25/30","unit":"m3","qty":12.5,"code":"MAT-001"}]},
   "region":"EU-Central"
 }'
+
+## Step 4: Export & Report
+Endpoints:
+- POST /mcp/material/export/excel  -> returns .xlsx
+- POST /mcp/material/export/json   -> returns .json
+- POST /mcp/material/report/pdf    -> returns .pdf
+
+Example:
+curl -X POST http://localhost:8080/mcp/material/export/json \
+ -H "Content-Type: application/json" \
+ -d '{"project_id":"demo","priced_bom":{"items":[{"name":"Бетон C25/30","unit":"m3","qty":12.5,"code":"MAT-001","unit_price":95.4,"currency":"EUR"}],"subtotal":1192.5,"currency":"EUR","gaps":[]}}' --output priced_bom.json
+cd services/mcp-material
+pip install -r requirements-core.txt
+pip install -r requirements-extras.txt
+pytest -q
+make dev
+# Открой http://localhost:8080/docs — вызови:
+# 1) /mcp/material/export/json
+# 2) /mcp/material/export/excel
+# 3) /mcp/material/report/pdf

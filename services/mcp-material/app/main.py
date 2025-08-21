@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Response
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import ORJSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from app.schemas.common import Health, Error
@@ -11,11 +11,16 @@ from app.schemas.bom import (
     ExtractBOMRequest,
     PriceBOMRequest,
     SuggestSubsRequest,
+    ExportExcelRequest,
+    ExportJsonRequest,
+    ReportPdfRequest,
 )
 from app.services.pricing import price_bom as price_bom_service
 from app.services.substitutions import (
     suggest_substitutions as subs_service,
 )
+from app.services.exporter import export_priced_bom_excel, export_priced_bom_json
+from app.services.report_pdf import generate_priced_bom_pdf
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
@@ -102,6 +107,24 @@ def suggest_substitutions(body: SuggestSubsRequest):
     region = "EU-Central"  # for MVP we can infer from context later; or pass explicitly in constraints
     payload = body.model_dump()
     return subs_service(payload, region=region)
+
+
+@router.post("/export/excel", summary="Export PricedBOM to Excel (.xlsx)")
+def export_excel(body: ExportExcelRequest):
+    path = export_priced_bom_excel(project_id=body.project_id, priced=body.priced_bom, filename=body.filename)
+    return FileResponse(path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=path.name)
+
+
+@router.post("/export/json", summary="Export PricedBOM to JSON (.json)")
+def export_json(body: ExportJsonRequest):
+    path = export_priced_bom_json(project_id=body.project_id, priced=body.priced_bom, filename=body.filename)
+    return FileResponse(path, media_type="application/json", filename=path.name)
+
+
+@router.post("/report/pdf", summary="Generate simple PDF report from PricedBOM")
+def report_pdf(body: ReportPdfRequest):
+    path = generate_priced_bom_pdf(project_id=body.project_id, priced=body.priced_bom, title=body.title or "Сметный отчёт", filename=body.filename)
+    return FileResponse(path, media_type="application/pdf", filename=path.name)
 
 
 app.include_router(router)
