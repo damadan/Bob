@@ -1,4 +1,3 @@
-import io
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from fastapi.testclient import TestClient
@@ -8,9 +7,9 @@ from app.core.config import settings
 
 client = TestClient(app)
 
+
 def _make_pdf_table(tmp_path: Path) -> Path:
     p = tmp_path / "spec.pdf"
-    buf = io.BytesIO()
     c = canvas.Canvas(str(p), pagesize=A4)
     # simple text table imitation
     y = 800
@@ -29,6 +28,7 @@ def _make_pdf_table(tmp_path: Path) -> Path:
     c.save()
     return p
 
+
 def test_parse_pdf(tmp_path, monkeypatch):
     # prepare resource:// path
     proj = settings.DATA_ROOT / "projects" / "t1" / "files"
@@ -37,7 +37,9 @@ def test_parse_pdf(tmp_path, monkeypatch):
     target = proj / "spec.pdf"
     target.write_bytes(pdf_path.read_bytes())
 
-    r = client.post("/mcp/material/parse_drawing", json={"file_uri": "resource://project/t1/files/spec.pdf"})
+    r = client.post(
+        "/mcp/material/parse_drawing", json={"file_uri": "resource://project/t1/files/spec.pdf"}
+    )
     assert r.status_code == 200, r.text
     js = r.json()
     assert "specs" in js and isinstance(js["specs"], list)

@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Optional
 
 HEADER_ALIASES = {
     "наименование": ["наименование", "название", "material", "item", "наим."],
@@ -7,6 +7,7 @@ HEADER_ALIASES = {
     "количество": ["кол-во", "количество", "кол.", "qty", "объем", "объём"],
     "марка": ["марка", "тип", "артикул", "brand", "code"],
 }
+
 
 def canonical_header(h: str) -> str:
     s = re.sub(r"\s+", " ", h.strip().lower())
@@ -22,10 +23,23 @@ def canonical_header(h: str) -> str:
         return "марка"
     return "наименование" if len(s) <= 3 else s
 
+
 _UNIT_MAP = {
-    "м2": "m2", "м³": "m3", "м3": "m3", "м": "m", "шт": "pcs", "кг": "kg", "т": "t",
-    "m2": "m2", "m3": "m3", "m": "m", "pcs": "pcs", "kg": "kg", "t": "t",
+    "м2": "m2",
+    "м³": "m3",
+    "м3": "m3",
+    "м": "m",
+    "шт": "pcs",
+    "кг": "kg",
+    "т": "t",
+    "m2": "m2",
+    "m3": "m3",
+    "m": "m",
+    "pcs": "pcs",
+    "kg": "kg",
+    "t": "t",
 }
+
 
 def normalize_unit(u: Optional[str]) -> Optional[str]:
     if not u:
@@ -35,7 +49,9 @@ def normalize_unit(u: Optional[str]) -> Optional[str]:
     s = re.sub(r"\s+", "", s)
     return _UNIT_MAP.get(s, s)
 
+
 _NUM_RE = re.compile(r"^[\s]*([+-]?[0-9]+(?:[.,][0-9]+)?)")
+
 
 def parse_number(val) -> Optional[float]:
     if val is None:
