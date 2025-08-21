@@ -14,7 +14,7 @@ from app.schemas.bom import (
 )
 from app.services.pricing import price_bom as price_bom_service
 from app.services.substitutions import (
-    suggest_substitutions as suggest_substitutions_service,
+    suggest_substitutions as subs_service,
 )
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
@@ -99,12 +99,9 @@ def price_bom(body: PriceBOMRequest):
     summary="Suggest alternates for gaps with constraints",
 )
 def suggest_substitutions(body: SuggestSubsRequest):
-    """Return substitution suggestions taking budget into account."""
-    budget = None
-    if body.constraints:
-        budget = body.constraints.get("budget")
-    suggestions = suggest_substitutions_service(budget)
-    return {"suggestions": suggestions}
+    region = "EU-Central"  # for MVP we can infer from context later; or pass explicitly in constraints
+    payload = body.model_dump()
+    return subs_service(payload, region=region)
 
 
 app.include_router(router)
