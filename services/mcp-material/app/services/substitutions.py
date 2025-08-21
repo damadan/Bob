@@ -1,32 +1,72 @@
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, List
+from app.schemas.bom import BOM, PricedBOM, Gap
+from app.services.pricebook import Pricebook
+from loguru import logger
 
 
-def suggest_substitutions(budget: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Return demo substitution candidates adjusted for budget.
-
-    Budget handling:
-    * ``low`` (default) - return all candidates sorted by ascending price.
-    * ``mid`` - keep only mid-priced items (50-500) and sort ascending.
-    * ``high`` - prefer expensive items (>=200) sorted from most to least
-      expensive.
-
-    The function is intentionally simple and uses a static catalog so that
-    tests can exercise the sorting and filtering behaviour for each budget
-    level.
+def suggest_substitutions(payload: Dict[str, Any], region: str) -> Dict[str, Any]:
     """
-    candidates: List[Dict[str, Any]] = [
-        {"code": "SUB-LOW", "name": "Budget Material", "unit_price": 10},
-        {"code": "SUB-MID-A", "name": "Standard Material A", "unit_price": 100},
-        {"code": "SUB-MID-B", "name": "Standard Material B", "unit_price": 200},
-        {"code": "SUB-HIGH", "name": "Premium Material", "unit_price": 1000},
-    ]
-    budget = (budget or "low").lower()
-    if budget == "mid":
-        filtered = [c for c in candidates if 50 <= c["unit_price"] <= 500]
-        return sorted(filtered, key=lambda c: c["unit_price"])
-    if budget == "high":
-        filtered = [c for c in candidates if c["unit_price"] >= 200]
-        return sorted(filtered, key=lambda c: c["unit_price"], reverse=True)
-    # default low-budget behaviour
-    return sorted(candidates, key=lambda c: c["unit_price"])
+    Input payload may have:
+      - bom: BOM (optional)
+      - priced_bom: PricedBOM (optional)
+      - constraints: {"budget": "low"|"mid"|"high", "lead_time": "<=30d"|None}
+    Returns dict: {"alternatives": [{"for_code":..., "candidates":[...]}]}
+    """
+    pb = Pricebook(region=region)
+    pb.load()
+
+    bom_data = payload.get("bom")
+    priced_data = payload.get("priced_bom")
+    bom: BOM | None = BOM.model_validate(bom_data) if bom_data else None
+    priced: PricedBOM | None = (
+        PricedBOM.model_validate(priced_data) if priced_data else None
+    )
+    constraints: Dict[str, Any] = payload.get("constraints") or {}
+
+    # choose gaps to cover
+    targets = []
+    if priced and priced.gaps:
+        for g in priced.gaps:
+            targets.append(g.item)
+    elif bom:
+        targets = bom.items
+    else:
+        return {"alternatives": []}
+
+    results: List[Dict[str, Any]] = []
+    price_list = [pb.get_by_code(c) for c in pb.codes()]
+    price_list = [p for p in price_list if p]
+
+    for it in targets:
+        canon = (it.name or "").lower()
+        cls = (it.props or {}).get("class")
+        # candidate filter
+        cand = []
+        for r in price_list:
+            rname = (r.name or "").lower()
+            if cls and cls in rname:
+                cand.append(r)
+            elif canon and canon.split()[0] in rname:
+                cand.append(r)
+        # constraints
+        budget = (constraints.get("budget") or "").lower()
+        if budget == "low":
+            cand = sorted(cand, key=lambda x: x.unit_price)
+        else:
+            cand = sorted(cand, key=lambda x: (x.lead_time_days or 9999, x.unit_price))
+
+        cand = cand[:3]
+        results.append({
+            "for_item": it.model_dump(),
+            "candidates": [
+                {
+                    "code": r.code, "name": r.name, "unit": r.unit,
+                    "unit_price": r.unit_price, "currency": r.currency,
+                    "lead_time_days": r.lead_time_days, "source": r.source
+                } for r in cand
+            ]
+        })
+
+    return {"alternatives": results}
+

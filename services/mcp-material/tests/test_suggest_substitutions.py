@@ -1,37 +1,28 @@
 from fastapi.testclient import TestClient
 from app.main import app
 
+
 client = TestClient(app)
 
 
-def _call(budget: str):
-    payload = {"constraints": {"budget": budget}}
-    return client.post("/mcp/material/suggest_substitutions", json=payload)
-
-
-def test_low_budget_returns_cheapest_first():
-    r = _call("low")
+def test_returns_substitutions_for_bom_items():
+    bom = {
+        "items": [
+            {"name": "Бетон C30", "unit": "m3", "qty": 10},
+            {"name": "Кирпич М200", "unit": "m2", "qty": 100},
+        ]
+    }
+    r = client.post("/mcp/material/suggest_substitutions", json={"bom": bom})
     assert r.status_code == 200, r.text
     js = r.json()
-    prices = [s["unit_price"] for s in js["suggestions"]]
-    # low budget keeps all items sorted ascending, so the first is the cheapest
-    assert prices == sorted(prices)
-    assert prices[0] == 10
+    assert "alternatives" in js
+    assert len(js["alternatives"]) == 2
+    codes = {
+        alt["candidates"][0]["code"]
+        for alt in js["alternatives"]
+        if alt.get("candidates")
+    }
+    assert codes == {"MAT-001", "MAT-002"}
+    for alt in js["alternatives"]:
+        assert len(alt["candidates"]) <= 3
 
-
-def test_mid_budget_filters_extremes_and_sorts_ascending():
-    r = _call("mid")
-    assert r.status_code == 200, r.text
-    js = r.json()
-    prices = [s["unit_price"] for s in js["suggestions"]]
-    # mid budget should drop the very cheap and very expensive options
-    assert prices == [100, 200]
-
-
-def test_high_budget_prefers_expensive_sorted_desc():
-    r = _call("high")
-    assert r.status_code == 200, r.text
-    js = r.json()
-    prices = [s["unit_price"] for s in js["suggestions"]]
-    # high budget returns expensive items first
-    assert prices == [1000, 200]
