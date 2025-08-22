@@ -14,6 +14,8 @@ from app.schemas.bom import (
     ExportExcelRequest,
     ExportJsonRequest,
     ReportPdfRequest,
+    MapOneRequest,
+    MapOneResponse,
 )
 from app.services.pricing import price_bom as price_bom_service
 from app.services.substitutions import (
@@ -24,6 +26,7 @@ from app.services.export import (
     export_json as export_json_service,
     report_pdf as report_pdf_service,
 )
+from app.services.catalog import MaterialCatalog
 from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
@@ -147,6 +150,16 @@ def report_pdf(body: ReportPdfRequest):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/debug/map_one", response_model=MapOneResponse)
+def debug_map_one(body: MapOneRequest):
+    cat = MaterialCatalog()
+    cat.load()
+    row = cat.best_match(body.name)
+    if not row:
+        return MapOneResponse()
+    return MapOneResponse(code=row.code, canonical_name=row.canonical_name, score=None)
 
 
 app.include_router(router)

@@ -78,3 +78,13 @@ class ReportPdfRequest(BaseModel):
     priced_bom: PricedBOM
     title: str | None = "Сметный отчёт"
     filename: str | None = None  # default: priced_bom.pdf
+
+
+class MapOneRequest(BaseModel):
+    name: str
+
+
+class MapOneResponse(BaseModel):
+    code: str | None = None
+    canonical_name: str | None = None
+    score: float | None = None
