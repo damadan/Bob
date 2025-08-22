@@ -1,0 +1,20 @@
+{
+  "title": "MCP Material Overview",
+  "timezone": "browser",
+  "schemaVersion": 27,
+  "version": 1,
+  "panels": [
+    { "type": "graph", "title": "HTTP latency (p95)", "targets": [
+      { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))" }
+    ]},
+    { "type": "graph", "title": "Requests per second", "targets": [
+      { "expr": "sum(rate(http_requests_total[1m]))" }
+    ]},
+    { "type": "graph", "title": "Pricing coverage", "targets": [
+      { "expr": "avg(quality_coverage_ratio)" }
+    ]},
+    { "type": "graph", "title": "Price items by result", "targets": [
+      { "expr": "sum(rate(price_items_total[5m])) by (result)" }
+    ]}
+  ]
+}
