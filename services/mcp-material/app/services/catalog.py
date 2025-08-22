@@ -4,8 +4,25 @@ from typing import List, Dict, Tuple, Optional
 import json
 import os
 from dataclasses import dataclass
-import numpy as np
 from loguru import logger
+
+# ``numpy`` is used only when the optional semantic-search stack is available.
+#
+# In the minimal execution environment used for the tests the heavy numerical
+# dependency might be missing which would raise ``ModuleNotFoundError`` during
+# module import and prevent the service from starting.  Previously the import
+# happened unconditionally which meant that even when tests explicitly disabled
+# embeddings (by monkeypatching ``HAS_EMB``) the import failure short-circuited
+# everything.
+#
+# To make the catalogue robust we attempt to import ``numpy`` lazily and fall
+# back to ``None`` when it isn't installed.  The rest of the code checks for the
+# presence of ``np`` before accessing it which allows the service to operate in a
+# degraded, fuzzy‑matching‑only mode.
+try:  # pragma: no cover - exercised indirectly
+    import numpy as np  # type: ignore
+except Exception:  # pragma: no cover
+    np = None  # type: ignore
 
 from app.core.config import settings
 from app.core.resource_uri import ResourceUriResolver
@@ -13,8 +30,12 @@ from app.core.resource_uri import ResourceUriResolver
 try:
     from sentence_transformers import SentenceTransformer
     import faiss
-    HAS_EMB = True
-except Exception:
+    HAS_EMB = np is not None  # require numpy as well
+except Exception:  # pragma: no cover - optional dependencies
+    HAS_EMB = False
+
+if np is None:
+    # Ensure the flag is coherent when numpy isn't available
     HAS_EMB = False
 
 @dataclass
