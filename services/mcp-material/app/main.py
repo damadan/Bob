@@ -6,6 +6,7 @@ from time import perf_counter
 from fastapi import Request
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.core.metrics import REQUEST_LATENCY, REQUEST_COUNT
+from app.core.audit import log_decision
 from app.schemas.common import Health, Error
 from app.schemas.bom import (
     BOM,
@@ -86,6 +87,7 @@ def health():
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+
 @app.get("/quality", tags=["debug"], summary="Quality metrics snapshot (JSON)")
 def quality_snapshot():
     return collect_metrics_snapshot()
@@ -129,7 +131,18 @@ def extract_bom(body: ExtractBOMRequest):
 
 @router.post("/price_bom", response_model=PricedBOM, summary="Apply regional pricebook to BOM")
 def price_bom(body: PriceBOMRequest):
-    return price_bom_service(body.bom, body.region, body.date)
+    result = price_bom_service(body.bom, body.region, body.date)
+    pid = getattr(body, "project_id", None) or "anonymous"
+    log_decision(
+        pid,
+        "price",
+        {
+            "subtotal": result.subtotal,
+            "priced": len(result.items),
+            "gaps": len(result.gaps or []),
+        },
+    )
+    return result
 
 
 @router.post(
@@ -137,7 +150,9 @@ def price_bom(body: PriceBOMRequest):
     summary="Suggest alternates for gaps with constraints",
 )
 def suggest_substitutions(body: SuggestSubsRequest):
-    region = "EU-Central"  # for MVP we can infer from context later; or pass explicitly in constraints
+    region = (
+        "EU-Central"  # for MVP we can infer from context later; or pass explicitly in constraints
+    )
     payload = body.model_dump()
     return subs_service(payload, region=region)
 
