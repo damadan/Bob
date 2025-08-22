@@ -109,7 +109,11 @@ curl -X POST "http://localhost:8090/run" \
      -d '{"steps":[{"tool":"parse_drawing","args":{"file_uri":"resource://project/demo/files/drawing.pdf"}}]}'
 ```
 
-**Status**: orchestrator is under active development; API may change.
+```bash
+curl -X POST "http://localhost:8090/run_multipart" \
+     -F "file=@/path/to/drawing.pdf"
+```
+The orchestrator also provides a chat interface via `/chat`.
 
 ### 3.3 mcp-compliance
 Mock code-compliance checks using simplified rule sets.
@@ -118,19 +122,19 @@ Mock code-compliance checks using simplified rule sets.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `POST` | `/mcp/compliance/check` | Run fire, egress and structural rule checks |
+| `POST` | `/mcp/compliance/check_fire_code` | Run fire code checks |
+| `POST` | `/mcp/compliance/check_egress` | Validate egress requirements |
+| `POST` | `/mcp/compliance/check_structural_spans` | Evaluate structural spans |
 
-The service returns a list of rule results with boolean `pass` flags and `detail` strings.
+Each call returns a JSON body with an `issues` array.
 
 **curl example**
 
 ```bash
-curl -X POST "http://localhost:8100/mcp/compliance/check" \
+curl -X POST "http://localhost:8081/mcp/compliance/check_fire_code" \
      -H "Content-Type: application/json" \
      -d '{"bom":{"items":[]}}'
 ```
-
-**Status**: rules are placeholders; real code norms coverage is planned.
 
 ### 3.4 mcp-lca
 Lifecycle assessment estimation service.
@@ -145,7 +149,7 @@ Lifecycle assessment estimation service.
 **curl example**
 
 ```bash
-curl -X POST "http://localhost:8110/mcp/lca/estimate" \
+curl -X POST "http://localhost:8082/mcp/lca/estimate" \
      -H "Content-Type: application/json" \
      -d '{"bom":{"items":[]}}'
 ```
@@ -183,23 +187,23 @@ All services expose a `/metrics` endpoint compatible with Prometheus and a `/qua
 
 ### Production
 
-Production deployments use `docker-compose.prod.yml` (not included in this repository) which defines the following stack:
+Production deployments use `deploy/docker-compose.prod.yml` which defines the following stack introduced at **Step 7**:
 
-- Nginx reverse proxy terminating TLS and routing to individual services.
+- Nginx reverse proxy with security headers routing to individual services.
 - mcp-material, orchestrator, mcp-compliance and mcp-lca containers.
-- Prometheus scraping `/metrics` from all services.
-- Grafana dashboards using Prometheus as a data source.
+- Prometheus scraping `/metrics` from mcp-material and the nginx exporter.
+- Grafana pre-provisioned with Prometheus and a starter dashboard.
 
 Sample invocation:
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod up -d
 ```
 
 Configuration is supplied via `.env.prod` files passed to each service.
 
 ## 7. Testing & Evaluation
 
-Unit tests are implemented with `pytest`. Quality metrics such as pricing coverage are evaluated using curated datasets. The evaluation pipeline (step 12) computes coverage, precision and gap statistics for each service and stores results for comparison over time.
+Unit tests are implemented with `pytest`. Quality metrics such as pricing coverage are evaluated using curated datasets. The evaluation pipeline currently exists only for **mcp-material**.
 
 To run tests for the material service:
 ```bash
