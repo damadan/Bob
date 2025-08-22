@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from io import BytesIO
 import json
-import pandas as pd
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
@@ -10,10 +11,31 @@ from app.schemas.bom import PricedBOM
 
 
 def export_excel(priced_bom: PricedBOM) -> bytes:
-    df = pd.DataFrame([item.model_dump() for item in priced_bom.items])
+    """Generate a simple XLSX representation of the priced BOM.
+
+    The implementation purposely avoids heavy dependencies like pandas so
+    that the service can operate in minimal environments (e.g. CI).  We build
+    the workbook using :mod:`openpyxl` directly which is lightweight and
+    sufficient for the tabular data used in tests.
+    """
+
+    wb = Workbook()
+    ws = wb.active
+
+    headers = list(priced_bom.items[0].model_dump().keys()) if priced_bom.items else []
+    ws.append(headers)
+    for item in priced_bom.items:
+        row = [item.model_dump().get(h) for h in headers]
+        ws.append(row)
+
+    # autosize columns for neatness (not essential but nice for manual checks)
+    for i, h in enumerate(headers, start=1):
+        column = get_column_letter(i)
+        max_len = max((len(str(cell.value)) if cell.value is not None else 0) for cell in ws[column])
+        ws.column_dimensions[column].width = max(10, min(50, max_len + 2))
+
     buf = BytesIO()
-    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
+    wb.save(buf)
     return buf.getvalue()
 
 
