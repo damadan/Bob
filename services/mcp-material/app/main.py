@@ -36,6 +36,7 @@ from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
 from app.core.logging import setup_logging
 from app.services.normalization import map_to_catalog
+from app.services.quality import collect_metrics_snapshot
 
 logger = setup_logging()
 
@@ -84,6 +85,10 @@ def health():
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@app.get("/quality", tags=["debug"], summary="Quality metrics snapshot (JSON)")
+def quality_snapshot():
+    return collect_metrics_snapshot()
 
 
 router = APIRouter(prefix="/mcp/material", tags=["mcp"])
