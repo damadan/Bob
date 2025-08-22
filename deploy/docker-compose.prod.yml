@@ -1,79 +1,71 @@
 version: "3.9"
 services:
-  orchestrator:
-    build: ../services/orchestrator
-    ports:
-      - "8090:8090"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
   mcp-material:
-    build: ../services/mcp-material
-    ports:
-      - "8080:8080"
+    build:
+      context: ../services/mcp-material
+      dockerfile: Dockerfile
+    environment:
+      ENV: prod
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATA_ROOT: /app/data
+      RESOURCES_ROOT: /app/resources
+      API_KEY: ${MCP_API_KEY}
     volumes:
-      - resources:/app/resources
-      - data:/app/data
+      - ../services/mcp-material/resources:/app/resources:ro
+      - mcp_data:/app/data
+    expose: ["8080"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-  mcp-compliance:
-    build: ../services/mcp-compliance
-    ports:
-      - "8081:8081"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-  mcp-lca:
-    build: ../services/mcp-lca
-    ports:
-      - "8082:8082"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+
+  orchestrator:
+    build:
+      context: ../services/orchestrator
+    environment:
+      MCP_BASE_URL: http://mcp-material:8080
+      MCP_API_KEY: ${MCP_API_KEY}
+      MCP_REGION: EU-Central
+    depends_on:
+      mcp-material:
+        condition: service_healthy
+    expose: ["8090"]
+
   nginx:
-    image: nginx:1.25
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    image: nginx:1.27-alpine
     depends_on:
+      - mcp-material
       - orchestrator
-      - mcp-material
-      - mcp-compliance
-      - mcp-lca
-  nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:0.11.0
-    command: ["-nginx.scrape-uri=http://nginx/stub_status"]
     ports:
-      - "9113:9113"
-    depends_on:
-      - nginx
-  prometheus:
-    image: prom/prometheus:v2.47.0
-    ports:
-      - "9090:9090"
+      - "${WEB_PORT}:80"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    depends_on:
-      - nginx-exporter
-      - mcp-material
-  grafana:
-    image: grafana/grafana:10.4.0
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+  nginx-exporter:
+    image: nginxinc/nginx-prometheus-exporter:0.11.0
+    depends_on: [nginx]
+    command: ["-nginx.scrape-uri", "http://nginx:80/stub_status"]
+    expose: ["9113"]
+
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: ["--config.file=/etc/prometheus/prometheus.yml","--web.enable-lifecycle"]
     ports:
-      - "3000:3000"
+      - "${PROMETHEUS_PORT}:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - prometheus
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
 volumes:
-  resources:
-  data:
+  mcp_data:
