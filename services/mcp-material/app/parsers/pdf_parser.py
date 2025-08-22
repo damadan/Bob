@@ -11,6 +11,7 @@ except Exception:
 
 from .utils import canonical_header, normalize_unit, parse_number
 from app.schemas.bom import RawSpec
+from app.core.metrics import PARSE_ROWS
 
 
 def _plumber_tables(pdf_path: Path) -> List[Dict[str, Any]]:
@@ -124,6 +125,7 @@ def parse_pdf_to_specs(pdf_path: Path) -> Dict[str, Any]:
                         extras={"engine": t.get("engine"), "page": t.get("page")},
                     )
                 )
+                PARSE_ROWS.labels(engine=t.get("engine") or "pdfplumber").inc()
             except Exception:
                 # be robust: skip bad rows
                 continue
