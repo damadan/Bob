@@ -216,9 +216,20 @@ async def debug_slow():
 )
 def parse_drawing(body: ParseDrawingRequest):
     path: Path = resolver.resolve(body.file_uri)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+    # Validate extension
     suffix = path.suffix.lower()
+    if suffix not in settings.ALLOWED_EXTS:
+        raise HTTPException(status_code=415, detail=f"Extension not allowed: {suffix}")
+    # Validate file size
+    try:
+        size_mb = path.stat().st_size / (1024 * 1024)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    if size_mb > settings.MAX_FILE_SIZE_MB:
+        raise HTTPException(
+            status_code=413,
+            detail=(f"File too large: {size_mb:.1f} MB > {settings.MAX_FILE_SIZE_MB} MB"),
+        )
     if suffix == ".pdf":
         return parse_pdf_to_specs(path)
     if suffix == ".ifc":
