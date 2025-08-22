@@ -7,6 +7,7 @@ except Exception:
     ifcopenshell = None
 
 from app.schemas.bom import RawSpec
+from app.core.metrics import PARSE_ROWS
 
 ELEMENT_CLASSES = [
     "IfcWall", "IfcSlab", "IfcDoor", "IfcWindow", "IfcColumn", "IfcBeam"
@@ -49,6 +50,7 @@ def parse_ifc_to_specs(ifc_path: Path) -> Dict[str, Any]:
                     source_table=f"{cls}",
                     extras={"GlobalId": getattr(el, "GlobalId", None)}
                 ))
+                PARSE_ROWS.labels(engine="ifc").inc()
         except Exception:
             continue
 
