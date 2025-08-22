@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple
 from app.schemas.bom import BOM, BOMItem, PricedBOM, PricedItem, Gap
 from app.services.pricebook import Pricebook, PriceRecord
 from loguru import logger
+from app.core.metrics import PRICE_ITEMS, QUALITY_COVERAGE
 
 ALLOWED_UNITS = {"m","m2","m3","pcs","kg","t"}
 
@@ -22,6 +23,7 @@ def price_bom(bom: BOM, region: str, date: Optional[str] = None) -> PricedBOM:
         # sanity: unit
         if it.unit and it.unit not in ALLOWED_UNITS:
             gaps.append(Gap(reason="unit_mismatch", item=it, detail=f"Unsupported unit: {it.unit}"))
+            PRICE_ITEMS.labels(result="gap_unit").inc()
             continue
 
         rec: Optional[PriceRecord] = None
@@ -41,11 +43,16 @@ def price_bom(bom: BOM, region: str, date: Optional[str] = None) -> PricedBOM:
 
         if rec is None:
             gaps.append(Gap(reason=reason or "no_price", item=it, detail="No price found in pricebook"))
+            if reason == "no_price" or reason is None:
+                PRICE_ITEMS.labels(result="gap_price").inc()
+            else:
+                PRICE_ITEMS.labels(result="gap_other").inc()
             continue
 
         # 3) unit compatibility
         if not _unit_compatible(it.unit, rec.unit):
             gaps.append(Gap(reason="unit_mismatch", item=it, detail=f"Item unit={it.unit} vs price unit={rec.unit}"))
+            PRICE_ITEMS.labels(result="gap_unit").inc()
             continue
 
         qty = float(it.qty or 0.0)
@@ -65,5 +72,11 @@ def price_bom(bom: BOM, region: str, date: Optional[str] = None) -> PricedBOM:
             price_source=rec.source,
             lead_time_days=rec.lead_time_days,
         ))
+        PRICE_ITEMS.labels(result="priced").inc()
+
+    total_items = len(bom.items)
+    priced_count = len(priced_items)
+    if total_items > 0:
+        QUALITY_COVERAGE.observe(priced_count / total_items)
 
     return PricedBOM(items=priced_items, subtotal=round(subtotal, 2), currency="EUR", gaps=gaps)
