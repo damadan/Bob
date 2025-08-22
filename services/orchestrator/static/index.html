@@ -23,15 +23,29 @@
     <button type="submit">Submit</button>
   </form>
 
-  <h2>Artifact Links</h2>
-  <div id="links"></div>
+  <div id="message"></div>
+
+  <h2>Artifacts</h2>
+  <ul id="links"></ul>
+
   <h2>Priced Preview</h2>
-  <pre id="preview"></pre>
+  <table id="preview"></table>
 
   <script>
     document.getElementById('run-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(e.target);
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const msg = document.getElementById('message');
+      const links = document.getElementById('links');
+      const table = document.getElementById('preview');
+
+      msg.textContent = '';
+      msg.style.color = '';
+      links.innerHTML = '';
+      table.innerHTML = '';
+
       try {
         const response = await fetch('/run_multipart', {
           method: 'POST',
@@ -39,27 +53,50 @@
         });
         const data = await response.json();
 
-        const linksDiv = document.getElementById('links');
-        linksDiv.innerHTML = '';
-        if (data.artifact_urls) {
-          data.artifact_urls.forEach(url => {
+        if (!response.ok) {
+          msg.textContent = data.detail || 'Request failed';
+          msg.style.color = 'red';
+          return;
+        }
+
+        if (data.artifacts) {
+          Object.entries(data.artifacts).forEach(([key, url]) => {
+            const li = document.createElement('li');
             const a = document.createElement('a');
             a.href = url;
-            a.textContent = url;
+            a.textContent = key.replace('_url', '').toUpperCase();
             a.target = '_blank';
-            linksDiv.appendChild(a);
-            linksDiv.appendChild(document.createElement('br'));
+            li.appendChild(a);
+            links.appendChild(li);
           });
         }
 
-        const preview = document.getElementById('preview');
-        if (data.priced_preview) {
-          preview.textContent = JSON.stringify(data.priced_preview, null, 2);
-        } else {
-          preview.textContent = JSON.stringify(data, null, 2);
+        if (data.priced_bom && Array.isArray(data.priced_bom.items)) {
+          const thead = document.createElement('thead');
+          const headerRow = document.createElement('tr');
+          ['name', 'qty', 'unit', 'price', 'total'].forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col;
+            headerRow.appendChild(th);
+          });
+          thead.appendChild(headerRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          data.priced_bom.items.forEach(item => {
+            const tr = document.createElement('tr');
+            ['name', 'qty', 'unit', 'price', 'total'].forEach(col => {
+              const td = document.createElement('td');
+              td.textContent = item[col] ?? '';
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
         }
       } catch (err) {
-        alert('Request failed: ' + err);
+        msg.textContent = 'Request failed: ' + err;
+        msg.style.color = 'red';
       }
     });
   </script>
