@@ -58,11 +58,11 @@ pytest -q
 | Name | Description | Default |
 | ---- | ----------- | ------- |
 | `API_KEY` | API ключ для защищённых эндпоинтов | `None` |
-| `MAX_REQUEST_BODY_MB` | максимальный размер тела запроса | `5` |
-| `MAX_FILE_SIZE_MB` | максимальный размер загружаемого файла | `5` |
-| `ALLOWED_EXTS` | разрешённые расширения для загрузки (через запятую) | `.pdf,.ifc` |
-| `REQUEST_TIMEOUT_SECONDS` | таймаут обработки запроса | `10` |
-| `RATE_LIMIT_RPS` | глобальное ограничение RPS | `50` |
+| `MAX_REQUEST_BODY_MB` | максимальный размер тела запроса | `20` |
+| `MAX_FILE_SIZE_MB` | максимальный размер загружаемого файла | `50` |
+| `ALLOWED_EXTS` | разрешённые расширения для загрузки (через запятую) | `.pdf,.ifc,.dwg` |
+| `REQUEST_TIMEOUT_SECONDS` | таймаут обработки запроса | `30.0` |
+| `RATE_LIMIT_RPS` | глобальное ограничение RPS | `5.0` |
 
 ## Step 3: Pricing
 Endpoints:
