@@ -28,6 +28,7 @@ from app.core.resource_uri import ResourceUriResolver
 from app.parsers.pdf_parser import parse_pdf_to_specs
 from app.parsers.ifc_parser import parse_ifc_to_specs
 from app.core.logging import setup_logging
+from app.services.normalization import map_to_catalog
 
 logger = setup_logging()
 
@@ -94,7 +95,10 @@ def parse_drawing(body: ParseDrawingRequest):
     summary="Build normalized BOM from specs/scope",
 )
 def extract_bom(body: ExtractBOMRequest):
-    raise HTTPException(status_code=501, detail="Not implemented in step 0")
+    bom = BOM()
+    # after you formed a preliminary BOM named `bom`
+    bom = map_to_catalog(bom, use_semantic=True)
+    return bom
 
 
 @router.post("/price_bom", response_model=PricedBOM, summary="Apply regional pricebook to BOM")
