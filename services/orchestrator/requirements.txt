@@ -6,3 +6,6 @@ pydantic-settings>=2.3
 tenacity>=8.2
 python-dotenv>=1.0
 orjson>=3.9
+openai>=1.35
+tiktoken>=0.7
+langchain-openai>=0.1
