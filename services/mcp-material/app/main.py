@@ -7,6 +7,9 @@ import mimetypes
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import ORJSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 from starlette.responses import Response, PlainTextResponse
 from starlette.concurrency import run_in_threadpool
@@ -54,6 +57,18 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
 )
 
+# Override exception handler to add concise JSON and logging
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.warning(f"HTTP {exc.status_code} at {request.url.path}: {exc.detail}")
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Validation error at {request.url.path}: {exc.errors()}")
+    return PlainTextResponse("Invalid request", status_code=422)
+
 # CORS (relax for dev; restrict in prod)
 app.add_middleware(
     CORSMiddleware,
@@ -93,6 +108,30 @@ async def body_size_limit(request: Request, call_next):
     return await call_next(request)
 
 
+_RATE_WINDOW = 1.0
+_LAST_HITS = {}
+_rate_state = {"ts": 0}
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    if settings.RATE_LIMIT_RPS > 1 and any(
+        request.url.path.startswith(p) for p in OPEN_ENDPOINTS
+    ):
+        return await call_next(request)
+    now = perf_counter()
+    if now - _rate_state["ts"] > _RATE_WINDOW:
+        _LAST_HITS.clear()
+        _rate_state["ts"] = now
+    hits = _LAST_HITS.setdefault(request.url.path, deque())
+    while hits and now - hits[0] > _RATE_WINDOW:
+        hits.popleft()
+    if len(hits) >= int(settings.RATE_LIMIT_RPS * _RATE_WINDOW):
+        return PlainTextResponse("Too Many Requests", status_code=429)
+    hits.append(now)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def api_key_guard(request: Request, call_next):
     if settings.API_KEY and not any(request.url.path.startswith(p) for p in OPEN_ENDPOINTS):
@@ -101,23 +140,6 @@ async def api_key_guard(request: Request, call_next):
             key = key.split(" ", 1)[1]
         if key != settings.API_KEY:
             return PlainTextResponse("Unauthorized", status_code=401)
-    return await call_next(request)
-
-
-_RATE_WINDOW = 1.0
-_LAST_HITS = deque(maxlen=1000)
-
-
-@app.middleware("http")
-async def rate_limit(request: Request, call_next):
-    if any(request.url.path.startswith(p) for p in OPEN_ENDPOINTS):
-        return await call_next(request)
-    now = perf_counter()
-    while _LAST_HITS and now - _LAST_HITS[0] > _RATE_WINDOW:
-        _LAST_HITS.popleft()
-    if len(_LAST_HITS) >= int(settings.RATE_LIMIT_RPS * _RATE_WINDOW):
-        return PlainTextResponse("Too Many Requests", status_code=429)
-    _LAST_HITS.append(now)
     return await call_next(request)
 
 
