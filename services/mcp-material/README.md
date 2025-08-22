@@ -2,13 +2,20 @@
 
 Сервис для извлечения спецификаций материалов из чертежей и расчёта стоимости.
 
-## Возможности
+## Endpoints
 
-- `GET /health` — проверка состояния сервиса.
-- `POST /mcp/material/parse_drawing` — конвертация PDF или IFC в список позиций.
-- `POST /mcp/material/extract_bom` — формирование нормализованной спецификации: объединение таблиц, распознавание заголовков, нормализация единиц и агрегация позиций.
-- `POST /mcp/material/price_bom` — оценка стоимости спецификации по региональному прайс‑листу.
-- `POST /mcp/material/suggest_substitutions` — подбор альтернативных материалов.
+- `GET /health` – сервис доступен.
+- `GET /metrics` – метрики Prometheus.
+- `GET /quality` – снимок внутренних метрик.
+- `POST /mcp/material/parse_drawing` – преобразование PDF/IFC в сырые позиции.
+- `POST /mcp/material/extract_bom` – нормализация спецификации.
+- `POST /mcp/material/price_bom` – применение прайс‑листа.
+- `POST /mcp/material/suggest_substitutions` – подбор альтернатив.
+- `POST /mcp/material/export/json` – экспорт сметы в JSON.
+- `POST /mcp/material/export/excel` – экспорт сметы в XLSX.
+- `POST /mcp/material/report/pdf` – PDF отчёт.
+- `POST /ingest/upload` – загрузка файлов проекта.
+- `GET /download/<project>/<kind>/<file>` – скачивание файлов.
 
 ## URI ресурсов
 
@@ -46,6 +53,17 @@ docker compose up --build
 pytest -q
 ```
 
+## Переменные окружения
+
+| Name | Description | Default |
+| ---- | ----------- | ------- |
+| `API_KEY` | API ключ для защищённых эндпоинтов | `None` |
+| `MAX_REQUEST_BODY_MB` | максимальный размер тела запроса | `5` |
+| `MAX_FILE_SIZE_MB` | максимальный размер загружаемого файла | `5` |
+| `ALLOWED_EXTS` | разрешённые расширения для загрузки (через запятую) | `.pdf,.ifc` |
+| `REQUEST_TIMEOUT_SECONDS` | таймаут обработки запроса | `10` |
+| `RATE_LIMIT_RPS` | глобальное ограничение RPS | `50` |
+
 ## Step 3: Pricing
 Endpoints:
 - POST /mcp/material/price_bom
@@ -58,6 +76,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 
 Example:
 curl -s http://localhost:8080/mcp/material/price_bom -X POST -H "Content-Type: application/json" -d '{
-  "bom":{"items":[{"name":"\u0411\u0435\u0442\u043e\u043d C25/30","unit":"m3","qty":12.5,"code":"MAT-001"}]},
+  "bom":{"items":[{"name":"Бетон C25/30","unit":"m3","qty":12.5,"code":"MAT-001"}]},
   "region":"EU-Central"
 }'
