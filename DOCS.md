@@ -158,6 +158,18 @@ curl -X POST "http://localhost:8082/mcp/lca/estimate" \
 
 **Status**: Uses mock emission factors; integration with real EPD data is on the roadmap.
 
+## 4. Evaluation Pipeline (Step 12)
+
+The `mcp-material` service now includes a small evaluation pipeline with a
+curated dataset. Run inside `services/mcp-material`:
+
+```bash
+make eval
+```
+
+This generates JSON and Markdown reports under `eval/out/`. Evaluation for
+other services will be added in future steps.
+
 ## 4. Observability & Monitoring
 
 All services expose a `/metrics` endpoint compatible with Prometheus and a `/quality` endpoint with a JSON snapshot of the same metrics. Deployments typically include a Prometheus instance scraping each service and Grafana dashboards for latency, error rates and coverage ratios. The metric `pricing_coverage_ratio` tracks priced items vs total items and feeds quality dashboards.
