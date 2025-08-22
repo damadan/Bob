@@ -58,10 +58,29 @@ class MaterialCatalog:
             self._by_code = by_code
 
     def _ensure_model(self):
-        if self._emb_model is None:
-            if not HAS_EMB:
-                raise RuntimeError("Embeddings stack not available (sentence-transformers/faiss). Install extras.")
+        """Load embedding model if available, otherwise disable semantic matching.
+
+        The embedding stack (sentence-transformers + model weights) might not be
+        available in restricted environments. Instead of raising and breaking the
+        service we fall back to a fuzzy matcher only.  Any failure while loading
+        the model will flip the global ``HAS_EMB`` flag so subsequent calls know
+        semantic search is disabled.
+        """
+
+        global HAS_EMB
+
+        if self._emb_model is not None:
+            return
+        if not HAS_EMB:
+            return
+        try:
             self._emb_model = SentenceTransformer(settings.CATALOG_MODEL_NAME)
+        except Exception as exc:
+            # Loading can fail when the model is missing or network access is
+            # blocked.  Log and disable semantic matching gracefully.
+            logger.warning(f"Failed to load embeddings model: {exc}")
+            self._emb_model = None
+            HAS_EMB = False
 
     def _build_texts(self) -> List[str]:
         texts = []
@@ -86,7 +105,10 @@ class MaterialCatalog:
         if self._loaded and not rebuild:
             return
         self._load_rows()
-        if not HAS_EMB:
+        # Always attempt to initialise the embedding model.  _ensure_model will
+        # disable HAS_EMB if loading fails (e.g. no network / missing weights).
+        self._ensure_model()
+        if not HAS_EMB or self._emb_model is None:
             logger.warning("Embeddings stack not available; semantic match disabled")
             self._loaded = True
             return
