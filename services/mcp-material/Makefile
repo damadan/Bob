@@ -1,4 +1,4 @@
-.PHONY: run dev test lint format docker-up docker-build
+.PHONY: run dev test lint format docker-up docker-build eval
 
 run:
 	PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port 8080
@@ -14,3 +14,6 @@ docker-build:
 
 docker-up:
 	docker compose up --build
+
+eval:
+	PYTHONPATH=. python -m eval.run_eval --output eval/out

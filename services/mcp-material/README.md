@@ -53,6 +53,16 @@ docker compose up --build
 pytest -q
 ```
 
+## Evaluation
+
+Запустить базовую проверку качества на подготовленном наборе кейсов:
+
+```bash
+make eval
+```
+
+Отчёты сохраняются в `eval/out/results.json` и `eval/out/report.md`.
+
 ## Переменные окружения
 
 | Name | Description | Default |

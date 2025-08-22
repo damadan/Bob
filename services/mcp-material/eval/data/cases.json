@@ -1,0 +1,26 @@
+[
+  {
+    "id": "case1",
+    "file": "spec.pdf",
+    "expected_items": [
+      {"name": "Бетон C25/30", "unit": "m3", "qty": 12.5},
+      {"name": "Арматура A500", "unit": "kg", "qty": 1500}
+    ]
+  },
+  {
+    "id": "case2",
+    "file": "spec.pdf",
+    "expected_items": [
+      {"name": "Бетон C25/30", "unit": "m3", "qty": 12.5},
+      {"name": "Арматура A500", "unit": "kg", "qty": 1500}
+    ]
+  },
+  {
+    "id": "case3",
+    "file": "spec.pdf",
+    "expected_items": [
+      {"name": "Бетон C25/30", "unit": "m3", "qty": 12.5},
+      {"name": "Арматура A500", "unit": "kg", "qty": 1500}
+    ]
+  }
+]
