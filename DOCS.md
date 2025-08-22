@@ -90,7 +90,9 @@ curl -X POST "http://localhost:8080/mcp/material/report/pdf" \
 - Parsing supports PDF and IFC only; DWG is not yet implemented.
 
 ### 3.2 Orchestrator
-A LangGraph-based agent that sequences calls to downstream services and provides a minimal chat UI.
+A LangGraph-based agent that sequences calls to downstream services and provides a minimal web UI.
+As of **Step 10** the demo UI is available at `http://localhost:8090/` and
+supports uploading a PDF/IFC with one-click processing.
 
 **Endpoints**
 
