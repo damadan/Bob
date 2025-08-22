@@ -2,6 +2,10 @@ from fastapi import FastAPI, APIRouter, HTTPException, Response
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+from time import perf_counter
+from fastapi import Request
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from app.core.metrics import REQUEST_LATENCY, REQUEST_COUNT
 from app.schemas.common import Health, Error
 from app.schemas.bom import (
     BOM,
@@ -52,20 +56,34 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def access_log(request, call_next):
-    logger.info(f"{request.method} {request.url}")
+async def access_log(request: Request, call_next):
+    start = perf_counter()
+    method = request.method
+    # truncate path to route base (no ids) for cardinality control
+    path = request.url.path
     try:
         response = await call_next(request)
-        logger.info(f"-> {response.status_code}")
+        status = str(response.status_code)
         return response
-    except Exception:
+    except Exception as e:
+        status = "500"
         logger.exception("Unhandled error")
         raise
+    finally:
+        dur = perf_counter() - start
+        REQUEST_LATENCY.labels(method=method, path=path, status=status).observe(dur)
+        REQUEST_COUNT.labels(method=method, path=path, status=status).inc()
+        logger.info(f"{method} {path} -> {status} in {dur:.3f}s")
 
 
 @app.get("/health", response_model=Health, tags=["health"], summary="Health check")
 def health():
     return Health(status="ok", service="mcp-material", version="0.0.1")
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 router = APIRouter(prefix="/mcp/material", tags=["mcp"])
