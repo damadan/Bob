@@ -79,3 +79,14 @@ curl -s http://localhost:8080/mcp/material/price_bom -X POST -H "Content-Type: a
   "bom":{"items":[{"name":"Бетон C25/30","unit":"m3","qty":12.5,"code":"MAT-001"}]},
   "region":"EU-Central"
 }'
+
+## Security & Validation (Step 7)
+- API Key (optional): set `API_KEY` in env; pass `X-API-Key: <key>` or `Authorization: Bearer <key>`.
+- Limits:
+  - Request body size: `MAX_REQUEST_BODY_MB` (default 20 MB)
+  - File size: `MAX_FILE_SIZE_MB` (default 50 MB)
+  - Allowed extensions: `ALLOWED_EXTS` (default .pdf, .ifc, .dwg)
+  - Request timeout: `REQUEST_TIMEOUT_SECONDS` (default 30s)
+  - Global RPS (per-process): `RATE_LIMIT_RPS` (default 5 rps)
+- Security headers: X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy.
+- Endpoints excluded from auth: `/health`, `/metrics`, `/quality`, `/docs`, `/openapi.json`.
