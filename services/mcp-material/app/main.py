@@ -1,12 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Response
-from fastapi.responses import ORJSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Response, UploadFile, File, Request
+from fastapi.responses import ORJSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from time import perf_counter
-from fastapi import Request
+import asyncio
+import mimetypes
+import time
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.core.metrics import REQUEST_LATENCY, REQUEST_COUNT
 from app.core.audit import log_decision
+from app.core.config import settings
 from app.schemas.common import Health, Error
 from app.schemas.bom import (
     BOM,
@@ -56,6 +59,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+SAFE_PATHS = {"/health", "/metrics", "/quality", "/docs", "/openapi.json"}
+_rate_state = {"ts": time.time(), "count": 0}
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    # Body size guard
+    max_body = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
+    cl = request.headers.get("content-length")
+    if cl and int(cl) > max_body:
+        return Response(status_code=413)
+
+    # API key guard
+    if settings.API_KEY and request.url.path not in SAFE_PATHS:
+        if request.headers.get("x-api-key") != settings.API_KEY:
+            return Response(status_code=401)
+
+    # Rate limit (simple global counter per second)
+    rps = settings.RATE_LIMIT_RPS
+    if rps > 0:
+        now = time.time()
+        if now - _rate_state["ts"] >= 1:
+            _rate_state["ts"] = now
+            _rate_state["count"] = 0
+        if _rate_state["count"] >= rps:
+            return Response(status_code=429)
+        _rate_state["count"] += 1
+
+    # Execute with timeout
+    try:
+        response = await asyncio.wait_for(call_next(request), timeout=settings.REQUEST_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        return Response(status_code=504)
+
+    # Security headers
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    return response
+
 
 @app.middleware("http")
 async def access_log(request: Request, call_next):
@@ -96,6 +139,45 @@ def quality_snapshot():
 router = APIRouter(prefix="/mcp/material", tags=["mcp"])
 
 resolver = ResourceUriResolver()
+
+
+@app.post("/ingest/upload", tags=["io"])
+async def ingest_upload(project_id: str, file: UploadFile = File(...)):
+    ext = Path(file.filename).suffix.lower()
+    if ext not in settings.ALLOWED_EXTS:
+        raise HTTPException(status_code=415, detail="Extension not allowed")
+    content = await file.read()
+    if len(content) > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large")
+    safe_name = Path(file.filename).name
+    base = settings.DATA_ROOT / "projects" / project_id / "files"
+    base.mkdir(parents=True, exist_ok=True)
+    target = base / safe_name
+    target.write_bytes(content)
+    uri = f"resource://project/{project_id}/files/{safe_name}"
+    return {"uri": uri}
+
+
+@app.get("/download/{project_id}/{kind}/{path:path}", tags=["io"])
+def download_file(project_id: str, kind: str, path: str):
+    if kind not in {"files", "outputs"}:
+        raise HTTPException(status_code=400, detail="Unsupported kind")
+    base = settings.DATA_ROOT / "projects" / project_id / kind
+    file_path = (base / path).resolve()
+    try:
+        file_path.relative_to(base.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path escapes base")
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    mt, _ = mimetypes.guess_type(str(file_path))
+    return FileResponse(file_path, media_type=mt or "application/octet-stream")
+
+
+@app.get("/debug/slow", tags=["debug"])
+async def debug_slow():
+    await asyncio.sleep(settings.REQUEST_TIMEOUT_SECONDS + 1)
+    return {"status": "slow"}
 
 
 @router.post(
@@ -161,6 +243,9 @@ def suggest_substitutions(body: SuggestSubsRequest):
 def export_excel(body: ExportExcelRequest):
     content = export_excel_service(body.priced_bom)
     filename = body.filename or "priced_bom.xlsx"
+    out_dir = settings.DATA_ROOT / "projects" / body.project_id / "outputs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / filename).write_bytes(content)
     return Response(
         content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -172,6 +257,9 @@ def export_excel(body: ExportExcelRequest):
 def export_json(body: ExportJsonRequest):
     content = export_json_service(body.priced_bom)
     filename = body.filename or "priced_bom.json"
+    out_dir = settings.DATA_ROOT / "projects" / body.project_id / "outputs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / filename).write_bytes(content)
     return Response(
         content,
         media_type="application/json",
@@ -183,6 +271,9 @@ def export_json(body: ExportJsonRequest):
 def report_pdf(body: ReportPdfRequest):
     content = report_pdf_service(body.priced_bom, title=body.title or "Сметный отчёт")
     filename = body.filename or "priced_bom.pdf"
+    out_dir = settings.DATA_ROOT / "projects" / body.project_id / "outputs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / filename).write_bytes(content)
     return Response(
         content,
         media_type="application/pdf",

@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     DATA_ROOT: Path = Field(default=Path("./data"))
     RESOURCES_ROOT: Path = Field(default=Path("./resources"))
 
+    # Security / limits
+    API_KEY: str | None = None
+    MAX_REQUEST_BODY_MB: int = 5
+    MAX_FILE_SIZE_MB: int = 5
+    ALLOWED_EXTS: list[str] = Field(default_factory=lambda: [".pdf", ".ifc"])
+    REQUEST_TIMEOUT_SECONDS: int = 10
+    RATE_LIMIT_RPS: int = 50
+
     CATALOG_MODEL_NAME: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     CATALOG_TOPK: int = 10
     CATALOG_MIN_SCORE: float = 0.55
