@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MCP Orchestrator</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    table, th, td { border: 1px solid #ccc; border-collapse: collapse; padding: 4px; }
+  </style>
+</head>
+<body>
+  <h1>MCP Orchestrator</h1>
+  <form id="upload-form">
+    <label>Project ID: <input type="text" name="project_id" required></label><br>
+    <label>Region: <input type="text" name="region"></label><br>
+    <label>File: <input type="file" name="file" accept=".pdf,.ifc" required></label><br>
+    <button type="submit">Run</button>
+  </form>
+  <div id="message"></div>
+  <div id="links"></div>
+  <table id="preview"></table>
+  <script>
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const fd = new FormData(form);
+      const msg = document.getElementById('message');
+      const links = document.getElementById('links');
+      const table = document.getElementById('preview');
+      msg.textContent = '';
+      msg.style.color = '';
+      links.innerHTML = '';
+      table.innerHTML = '';
+      try {
+        const resp = await fetch('/run_multipart', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (!resp.ok) {
+          msg.textContent = data.detail || 'Request failed';
+          msg.style.color = 'red';
+          return;
+        }
+        ['export_json_url', 'export_xlsx_url', 'report_pdf_url'].forEach(key => {
+          if (data[key]) {
+            const a = document.createElement('a');
+            a.href = data[key];
+            a.textContent = key;
+            a.target = '_blank';
+            links.appendChild(a);
+            links.appendChild(document.createElement('br'));
+          }
+        });
+        if (data.priced && Array.isArray(data.priced.items)) {
+          const header = ['name','qty','unit','price','total'];
+          const thead = document.createElement('thead');
+          const trh = document.createElement('tr');
+          header.forEach(h => { const th = document.createElement('th'); th.textContent = h; trh.appendChild(th); });
+          thead.appendChild(trh);
+          table.appendChild(thead);
+          const tbody = document.createElement('tbody');
+          data.priced.items.forEach(item => {
+            const tr = document.createElement('tr');
+            header.forEach(h => { const td = document.createElement('td'); td.textContent = item[h] ?? ''; tr.appendChild(td); });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+        }
+      } catch (err) {
+        msg.textContent = 'Request failed: ' + err;
+        msg.style.color = 'red';
+      }
+    });
+  </script>
+</body>
+</html>
