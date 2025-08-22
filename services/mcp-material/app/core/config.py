@@ -13,12 +13,12 @@ class Settings(BaseSettings):
     RESOURCES_ROOT: Path = Field(default=Path("./resources"))
 
     # Security / limits
-    API_KEY: str | None = None
-    MAX_REQUEST_BODY_MB: int = 5
-    MAX_FILE_SIZE_MB: int = 5
-    ALLOWED_EXTS: list[str] = Field(default_factory=lambda: [".pdf", ".ifc"])
-    REQUEST_TIMEOUT_SECONDS: int = 10
-    RATE_LIMIT_RPS: int = 50
+    API_KEY: str | None = None  # set in env to enable auth
+    MAX_REQUEST_BODY_MB: int = 20
+    MAX_FILE_SIZE_MB: int = 50
+    ALLOWED_EXTS: tuple[str, ...] = (".pdf", ".ifc", ".dwg")
+    REQUEST_TIMEOUT_SECONDS: float = 30.0
+    RATE_LIMIT_RPS: float = 5.0  # per-process simple limiter
 
     CATALOG_MODEL_NAME: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     CATALOG_TOPK: int = 10
