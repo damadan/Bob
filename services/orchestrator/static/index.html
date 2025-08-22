@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MCP Orchestrator</title>
+</head>
+<body>
+  <h1>MCP Orchestrator</h1>
+  <form id="run-form">
+    <label>
+      Project ID: <input type="text" name="project_id" required />
+    </label><br />
+    <label>
+      Region:
+      <select name="region">
+        <option value="eu-central">EU-Central</option>
+        <option value="ru-moscow">RU-Moscow</option>
+      </select>
+    </label><br />
+    <label>
+      File: <input type="file" name="file" accept=".pdf,.ifc" required />
+    </label><br />
+    <button type="submit">Submit</button>
+  </form>
+
+  <h2>Artifact Links</h2>
+  <div id="links"></div>
+  <h2>Priced Preview</h2>
+  <pre id="preview"></pre>
+
+  <script>
+    document.getElementById('run-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      try {
+        const response = await fetch('/run_multipart', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+
+        const linksDiv = document.getElementById('links');
+        linksDiv.innerHTML = '';
+        if (data.artifact_urls) {
+          data.artifact_urls.forEach(url => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.textContent = url;
+            a.target = '_blank';
+            linksDiv.appendChild(a);
+            linksDiv.appendChild(document.createElement('br'));
+          });
+        }
+
+        const preview = document.getElementById('preview');
+        if (data.priced_preview) {
+          preview.textContent = JSON.stringify(data.priced_preview, null, 2);
+        } else {
+          preview.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (err) {
+        alert('Request failed: ' + err);
+      }
+    });
+  </script>
+</body>
+</html>
