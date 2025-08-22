@@ -93,21 +93,6 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def body_size_limit(request: Request, call_next):
-    max_bytes = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
-    if request.method in ("POST", "PUT", "PATCH"):
-        body = await request.body()
-        if len(body) > max_bytes:
-            return PlainTextResponse("Request entity too large", status_code=413)
-
-        async def receive_gen():
-            return {"type": "http.request", "body": body, "more_body": False}
-
-        request._receive = receive_gen
-    return await call_next(request)
-
-
 _RATE_WINDOW = 1.0
 _LAST_HITS = {}
 _rate_state = {"ts": 0}
@@ -170,6 +155,27 @@ async def access_log(request: Request, call_next):
         REQUEST_LATENCY.labels(method=method, path=path, status=status).observe(dur)
         REQUEST_COUNT.labels(method=method, path=path, status=status).inc()
         logger.info(f"{method} {path} -> {status} in {dur:.3f}s")
+
+
+@app.middleware("http")
+async def body_size_limit(request: Request, call_next):
+    """Reject requests with bodies exceeding configured size.
+
+    The middleware is defined last so that it runs *first* in the Starlette
+    middleware stack, ensuring that oversize requests are rejected before they
+    hit rate limiting or other guards.
+    """
+    max_bytes = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
+    if request.method in ("POST", "PUT", "PATCH"):
+        body = await request.body()
+        if len(body) > max_bytes:
+            return PlainTextResponse("Request entity too large", status_code=413)
+
+        async def receive_gen():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request._receive = receive_gen
+    return await call_next(request)
 
 
 @app.get("/health", response_model=Health, tags=["health"], summary="Health check")
