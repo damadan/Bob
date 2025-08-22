@@ -1,11 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Response, UploadFile, File, Request
-from fastapi.responses import ORJSONResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+from collections import deque
 from pathlib import Path
 from time import perf_counter
-import asyncio
 import mimetypes
-import time
+
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import ORJSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import Response, PlainTextResponse
+from starlette.concurrency import run_in_threadpool
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.core.metrics import REQUEST_LATENCY, REQUEST_COUNT
 from app.core.audit import log_decision
@@ -59,45 +63,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SAFE_PATHS = {"/health", "/metrics", "/quality", "/docs", "/openapi.json"}
-_rate_state = {"ts": time.time(), "count": 0}
+OPEN_ENDPOINTS = ("/health", "/metrics", "/quality", "/docs", "/redoc", "/openapi.json")
 
 
 @app.middleware("http")
-async def security_middleware(request: Request, call_next):
-    # Body size guard
-    max_body = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
-    cl = request.headers.get("content-length")
-    if cl and int(cl) > max_body:
-        return Response(status_code=413)
-
-    # API key guard
-    if settings.API_KEY and request.url.path not in SAFE_PATHS:
-        if request.headers.get("x-api-key") != settings.API_KEY:
-            return Response(status_code=401)
-
-    # Rate limit (simple global counter per second)
-    rps = settings.RATE_LIMIT_RPS
-    if rps > 0:
-        now = time.time()
-        if now - _rate_state["ts"] >= 1:
-            _rate_state["ts"] = now
-            _rate_state["count"] = 0
-        if _rate_state["count"] >= rps:
-            return Response(status_code=429)
-        _rate_state["count"] += 1
-
-    # Execute with timeout
-    try:
-        response = await asyncio.wait_for(call_next(request), timeout=settings.REQUEST_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
-        return Response(status_code=504)
-
-    # Security headers
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none';"
+    )
     return response
+
+
+@app.middleware("http")
+async def body_size_limit(request: Request, call_next):
+    max_bytes = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
+    if request.method in ("POST", "PUT", "PATCH"):
+        body = await request.body()
+        if len(body) > max_bytes:
+            return PlainTextResponse("Request entity too large", status_code=413)
+
+        async def receive_gen():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request._receive = receive_gen
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def api_key_guard(request: Request, call_next):
+    if settings.API_KEY and not any(request.url.path.startswith(p) for p in OPEN_ENDPOINTS):
+        key = request.headers.get("x-api-key") or request.headers.get("authorization")
+        if key and key.lower().startswith("bearer "):
+            key = key.split(" ", 1)[1]
+        if key != settings.API_KEY:
+            return PlainTextResponse("Unauthorized", status_code=401)
+    return await call_next(request)
+
+
+_RATE_WINDOW = 1.0
+_LAST_HITS = deque(maxlen=1000)
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    if any(request.url.path.startswith(p) for p in OPEN_ENDPOINTS):
+        return await call_next(request)
+    now = perf_counter()
+    while _LAST_HITS and now - _LAST_HITS[0] > _RATE_WINDOW:
+        _LAST_HITS.popleft()
+    if len(_LAST_HITS) >= int(settings.RATE_LIMIT_RPS * _RATE_WINDOW):
+        return PlainTextResponse("Too Many Requests", status_code=429)
+    _LAST_HITS.append(now)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def request_timeout(request: Request, call_next):
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=settings.REQUEST_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        return PlainTextResponse("Request timeout", status_code=504)
 
 
 @app.middleware("http")
@@ -153,7 +182,7 @@ async def ingest_upload(project_id: str, file: UploadFile = File(...)):
     base = settings.DATA_ROOT / "projects" / project_id / "files"
     base.mkdir(parents=True, exist_ok=True)
     target = base / safe_name
-    target.write_bytes(content)
+    await run_in_threadpool(target.write_bytes, content)
     uri = f"resource://project/{project_id}/files/{safe_name}"
     return {"uri": uri}
 
