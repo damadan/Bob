@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "site": {"type": "string", "format": "uri"},
+        "registered_at": {"type": "string", "format": "date"},
+        "inn": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "ogrn": {"type": "string", "pattern": "^[0-9]{13}$"},
+        "capital": {"type": ["number", "null"]},
+        "debt": {"type": ["number", "null"]},
+        "loss": {"type": ["number", "null"]},
+        "currency": {"type": "string", "enum": ["RUB", "USD"]},
+        "tags": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["name", "site", "registered_at", "inn", "ogrn", "currency"],
+    "additionalProperties": false
+}
